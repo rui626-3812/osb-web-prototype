@@ -1,0 +1,6 @@
+{
+  "name": "Olympiad Team Portal",
+  "description": "An interactive hub for the academic Olympiad team featuring member listings, past achievements, practice question sets, and meeting scheduling tools.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
