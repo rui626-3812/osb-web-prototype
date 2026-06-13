@@ -724,10 +724,23 @@ export default function EventsSection({
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                setUnregisteringEventId(event.id);
-                                setUnregistNameInput('');
-                                setUnregistError('');
-                                setJoiningEventId(null);
+                                const savedName = localStorage.getItem('olympiad_rsvp_name') || '';
+                                if (savedName.trim()) {
+                                  const targetEvent = events.find(ev => ev.id === event.id);
+                                  if (targetEvent) {
+                                    const nextAttendees = (targetEvent.attendees || []).filter(
+                                      a => a.name.toLowerCase() !== savedName.trim().toLowerCase()
+                                    );
+                                    onUpdateEvent(event.id, { attendees: nextAttendees });
+                                  }
+                                  setRsvpedIds(prev => prev.filter(id => id !== event.id));
+                                } else {
+                                  // Fallback: if name not in localStorage, show the form
+                                  setUnregisteringEventId(event.id);
+                                  setUnregistNameInput('');
+                                  setUnregistError('');
+                                  setJoiningEventId(null);
+                                }
                               }}
                               className="rounded-xl bg-rose-50 text-rose-700 border border-rose-100 hover:bg-rose-100 px-3 py-1.5 font-sans text-xs font-bold transition-all cursor-pointer"
                             >
