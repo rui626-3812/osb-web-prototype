@@ -10,6 +10,14 @@ import { motion, AnimatePresence } from 'motion/react';
 
 interface ResourcesSectionProps {
   isAdmin: boolean;
+  titles: {
+    resourcesTitle: string;
+    resourcesSubtitle: string;
+    faqsTitle: string;
+    faqsSubtitle: string;
+    [key: string]: string;
+  };
+  onUpdateTitles: (updated: { [key: string]: string }) => void;
   resources: ResourceItem[];
   faqs: FAQItem[];
   onAddResource: (resource: Omit<ResourceItem, 'id'>) => void;
@@ -22,6 +30,8 @@ interface ResourcesSectionProps {
 
 export default function ResourcesSection({
   isAdmin,
+  titles,
+  onUpdateTitles,
   resources,
   faqs,
   onAddResource,
@@ -37,6 +47,25 @@ export default function ResourcesSection({
   // Interactive Admin modes
   const [isAddingResource, setIsAddingResource] = useState(false);
   const [isAddingFaq, setIsAddingFaq] = useState(false);
+
+  // States to edit section header titles staterfully
+  const [isEditingResHeader, setIsEditingResHeader] = useState(false);
+  const [resTitle, setResTitle] = useState(titles.resourcesTitle || "Curated References & Resources");
+  const [resSubtitle, setResSubtitle] = useState(titles.resourcesSubtitle || "Core documentation, templates, and training databases");
+
+  const [isEditingFaqHeader, setIsEditingFaqHeader] = useState(false);
+  const [faqTitle, setFaqTitle] = useState(titles.faqsTitle || "Frequently Asked Questions");
+  const [faqSubtitle, setFaqSubtitle] = useState(titles.faqsSubtitle || "Everything you need to know to get started");
+
+  const handleSaveResHeader = () => {
+    onUpdateTitles({ resourcesTitle: resTitle, resourcesSubtitle: resSubtitle });
+    setIsEditingResHeader(false);
+  };
+
+  const handleSaveFaqHeader = () => {
+    onUpdateTitles({ faqsTitle: faqTitle, faqsSubtitle: faqSubtitle });
+    setIsEditingFaqHeader(false);
+  };
 
   // New Resource values
   const [newResTitle, setNewResTitle] = useState('');
@@ -169,14 +198,64 @@ export default function ResourcesSection({
       {/* References & Links Directory */}
       <section id="references-links" className="space-y-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="font-sans text-xl font-bold text-slate-950 flex items-center gap-2">
-              <Compass className="h-5 w-5 text-slate-700" /> Curated References & Resources
-            </h2>
-            <p className="font-mono text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">
-              Core documentation, templates, and training databases
-            </p>
-          </div>
+          {isEditingResHeader && isAdmin ? (
+            <div className="space-y-2 bg-slate-50 p-3 rounded-2xl border border-slate-200 w-full max-w-md">
+              <input
+                type="text"
+                value={resTitle}
+                onChange={(e) => setResTitle(e.target.value)}
+                className="w-full font-sans text-sm font-bold text-slate-950 bg-white p-2 rounded-lg border border-slate-200 focus:outline-none"
+                placeholder="Resources Title"
+              />
+              <textarea
+                value={resSubtitle}
+                onChange={(e) => setResSubtitle(e.target.value)}
+                className="w-full font-sans text-xs text-slate-600 bg-white p-2 rounded-lg border border-slate-200 focus:outline-none"
+                placeholder="Resources Subtitle"
+                rows={2}
+              />
+              <div className="flex gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsEditingResHeader(false)}
+                  className="rounded-lg border border-slate-200 bg-white text-slate-600 px-3 py-1 text-[10px] font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveResHeader}
+                  className="rounded-lg bg-slate-950 text-white px-3 py-1 text-[10px] font-bold"
+                >
+                  Save Title
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="group relative flex items-center gap-2">
+              <div>
+                <h2 className="font-sans text-xl font-bold text-slate-950 flex items-center gap-2">
+                  <Compass className="h-5 w-5 text-slate-700" /> {titles.resourcesTitle || resTitle}
+                </h2>
+                <p className="font-mono text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">
+                  {titles.resourcesSubtitle || resSubtitle}
+                </p>
+              </div>
+              {isAdmin && (
+                <button
+                  onClick={() => {
+                    setResTitle(titles.resourcesTitle || resTitle);
+                    setResSubtitle(titles.resourcesSubtitle || resSubtitle);
+                    setIsEditingResHeader(true);
+                  }}
+                  className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition animate-fade-in"
+                  title="Edit resources list headers"
+                >
+                  <Edit className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          )}
 
           {isAdmin && (
             <button
@@ -448,26 +527,76 @@ export default function ResourcesSection({
       {/* Structured FAQs */}
       <section id="faqs" className="border-t border-slate-200/80 pt-12 space-y-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="flex items-center gap-3">
-              <h2 className="font-sans text-xl font-bold text-slate-950 flex items-center gap-2">
-                <HelpCircle className="h-5 w-5 text-slate-700" /> Frequently Asked Questions
-              </h2>
+          {isEditingFaqHeader && isAdmin ? (
+            <div className="space-y-2 bg-slate-50 p-3 rounded-2xl border border-slate-200 w-full max-w-md">
+              <input
+                type="text"
+                value={faqTitle}
+                onChange={(e) => setFaqTitle(e.target.value)}
+                className="w-full font-sans text-sm font-bold text-slate-950 bg-white p-2 rounded-lg border border-slate-200 focus:outline-none"
+                placeholder="FAQs Title"
+              />
+              <textarea
+                value={faqSubtitle}
+                onChange={(e) => setFaqSubtitle(e.target.value)}
+                className="w-full font-sans text-xs text-slate-600 bg-white p-2 rounded-lg border border-slate-200 focus:outline-none"
+                placeholder="FAQs Subtitle"
+                rows={2}
+              />
+              <div className="flex gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsEditingFaqHeader(false)}
+                  className="rounded-lg border border-slate-200 bg-white text-slate-600 px-3 py-1 text-[10px] font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveFaqHeader}
+                  className="rounded-lg bg-slate-950 text-white px-3 py-1 text-[10px] font-bold"
+                >
+                  Save Title
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="group relative flex items-center gap-2">
+              <div>
+                <div className="flex items-center gap-3">
+                  <h2 className="font-sans text-xl font-bold text-slate-950 flex items-center gap-2">
+                    <HelpCircle className="h-5 w-5 text-slate-700" /> {titles.faqsTitle || faqTitle}
+                  </h2>
+                  {isAdmin && (
+                    <button
+                      id="add-faq-trigger-btn"
+                      onClick={() => setIsAddingFaq(!isAddingFaq)}
+                      className="flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-1.5 font-sans text-xs font-bold text-white hover:bg-slate-800 transition cursor-pointer"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add FAQ Record
+                    </button>
+                  )}
+                </div>
+                <p className="font-mono text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">
+                  {titles.faqsSubtitle || faqSubtitle}
+                </p>
+              </div>
               {isAdmin && (
                 <button
-                  id="add-faq-trigger-btn"
-                  onClick={() => setIsAddingFaq(!isAddingFaq)}
-                  className="flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-1.5 font-sans text-xs font-bold text-white hover:bg-slate-800 transition cursor-pointer"
+                  onClick={() => {
+                    setFaqTitle(titles.faqsTitle || faqTitle);
+                    setFaqSubtitle(titles.faqsSubtitle || faqSubtitle);
+                    setIsEditingFaqHeader(true);
+                  }}
+                  className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition"
+                  title="Edit FAQ section headers"
                 >
-                  <Plus className="h-3.5 w-3.5" />
-                  Add FAQ Record
+                  <Edit className="h-3.5 w-3.5" />
                 </button>
               )}
             </div>
-            <p className="font-mono text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">
-              Everything you need to know to get started
-            </p>
-          </div>
+          )}
 
           {/* FAQ Category Selection */}
           <div className="flex flex-wrap rounded-xl bg-slate-100 p-1 border border-slate-200/50">

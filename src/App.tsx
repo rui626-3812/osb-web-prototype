@@ -26,14 +26,80 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<string>('home');
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
 
-  // Stateful text & content arrays with localstorage backups
+  // Guard reference to prevent server polling from overwriting local changes immediately
+  const lastPushTimeRef = React.useRef<number>(0);
+
+  // Helper to push modified state data to Express database
+  const pushToServer = async (payload: {
+    intro?: typeof intro;
+    events?: MeetEvent[];
+    members?: Member[];
+    alumniList?: Alumni[];
+    achievements?: Achievement[];
+    resources?: ResourceItem[];
+    faqs?: FAQItem[];
+    titles?: typeof titles;
+    schedulePassword?: string;
+  }) => {
+    lastPushTimeRef.current = Date.now();
+    try {
+      const response = await fetch('/api/data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (response.ok) {
+        const result = await response.json();
+        if (result && result.success && result.data) {
+          if (payload.intro) setIntro(result.data.intro);
+          if (payload.events) setEvents(result.data.events);
+          if (payload.members) setMembers(result.data.members);
+          if (payload.alumniList) setAlumniList(result.data.alumniList);
+          if (payload.achievements) setAchievements(result.data.achievements);
+          if (payload.resources) setResources(result.data.resources);
+          if (payload.faqs) setFaqs(result.data.faqs);
+          if (payload.titles) setTitles(result.data.titles);
+          if (payload.schedulePassword !== undefined) setSchedulePassword(result.data.schedulePassword);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to sync state changes with server', err);
+    }
+  };
+
+  // Titles state dictionary
+  const [titles, setTitles] = useState(() => {
+    const saved = localStorage.getItem('olympiand_portal_titles');
+    return saved ? JSON.parse(saved) : {
+      brandName: "OSB Portal",
+      brandSubtitle: "Ocean Science Hub",
+      teamTitle: "Active Roster",
+      teamSubtitle: "Meet our competitors and coaches guiding our divisions.",
+      alumniTitle: "Alumni & Legacy",
+      alumniSubtitle: "Previous outstanding minds who paved the scientific road.",
+      eventsTitle: "Meets & Workout Schedule",
+      eventsSubtitle: "Upcoming team meetings, mock trials, and regional qualifier dates.",
+      resourcesTitle: "Curated References & Resources",
+      resourcesSubtitle: "Core documentation, study kits, templates, and training datasets.",
+      faqsTitle: "Frequently Asked Questions",
+      faqsSubtitle: "Everything you need to know regarding qualifiers, practices, and academic requirements."
+    };
+  });
+
+  // Scheduling password configured on server
+  const [schedulePassword, setSchedulePassword] = useState<string>(() => {
+    const saved = localStorage.getItem('olympiad_portal_schedule_password');
+    return saved || "239power";
+  });
+
+  // Stateful text & content arrays with localstorage backups for instant initial paint
   const [intro, setIntro] = useState(() => {
     const saved = localStorage.getItem('olympiad_portal_team_intro_v2');
     return saved ? JSON.parse(saved) : {
-      title: "The Olympiad Coding & Mathematics Team",
-      subtitle: "Challenging elite minds in algorithmic problem solving and advanced mathematics.",
-      description: "Established in 2021, our team brings together the brightest analytical minds to compete in regional, national, and international arenas including ICPC, USACO, USAMO, and Putnam. We practice twice a week, solving intricate combinatorial puzzles, dynamic programming matrices, and number theoretic lemmas. We believe in collaborative excellence, shared intelligence, and rigorous intellectual growth.",
-      mismatchBanner: "Our club is fully student-run, featuring mentoring pipelines and open-source study guides for high-stakes problem-solving competitions."
+      title: "OSB Portal",
+      subtitle: "Ocean Science Hub",
+      description: "Established in 2021, our team brings together the brightest analytical minds to explore oceanography, fluid dynamics, marine biochemistry, and computational environmental modeling. We compete in national and global olympiads, researching physical ocean mechanics, chemical marine tracers, and ecological trophic webs. We believe in sharing critical marine science tools, collaborative field studies, and rigorous mathematical prep for all elite qualifiers.",
+      mismatchBanner: "Our hub is completely student-led, providing reference files, curated practice sets, and mentoring pipelines for next-generation oceanographers."
     };
   });
 
@@ -67,7 +133,58 @@ export default function App() {
     return saved ? JSON.parse(saved) : initialFAQs;
   });
 
-  // Serialization effects to synchronize with localStorage
+  // Master server-side state synchronizer with 5s delta checks
+  useEffect(() => {
+    let active = true;
+    const fetchLatestServerData = async () => {
+      // Abort updating from server if the user recently performed local mutations
+      if (Date.now() - lastPushTimeRef.current < 4000) {
+        return;
+      }
+      try {
+        const response = await fetch('/api/data');
+        if (!response.ok) throw new Error('Failed to load server data');
+        const data = await response.json();
+        if (active && data) {
+          // Double guard check after network round-trip completes
+          if (Date.now() - lastPushTimeRef.current < 4000) {
+            return;
+          }
+          if (data.intro) setIntro(data.intro);
+          if (data.events) setEvents(data.events);
+          if (data.members) setMembers(data.members);
+          if (data.alumniList) setAlumniList(data.alumniList);
+          if (data.achievements) setAchievements(data.achievements);
+          if (data.resources) setResources(data.resources);
+          if (data.faqs) setFaqs(data.faqs);
+          if (data.titles) setTitles(data.titles);
+          if (data.schedulePassword !== undefined) setSchedulePassword(data.schedulePassword);
+        }
+      } catch (err) {
+        console.error('Failed to sync master portal state:', err);
+      }
+    };
+
+    fetchLatestServerData();
+
+    // Poll server database state every 5 seconds to automatically sync multiple concurrent client instances
+    const timer = setInterval(fetchLatestServerData, 5000);
+
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, []);
+
+  // Sync state variables to LocalStorage for local quick fallback caches
+  useEffect(() => {
+    localStorage.setItem('olympiand_portal_titles', JSON.stringify(titles));
+  }, [titles]);
+
+  useEffect(() => {
+    localStorage.setItem('olympiad_portal_schedule_password', schedulePassword);
+  }, [schedulePassword]);
+
   useEffect(() => {
     localStorage.setItem('olympiad_portal_team_intro_v2', JSON.stringify(intro));
   }, [intro]);
@@ -101,14 +218,36 @@ export default function App() {
     const eventWithId: MeetEvent = {
       ...newEvent,
       id: `e_${Date.now()}`,
-      attendeesCount: Math.floor(Math.random() * 8) + 5, // mock initial registrants
+      attendeesCount: 0,
+      attendees: [],
     };
-    setEvents(prev => [eventWithId, ...prev]);
+    const next = [eventWithId, ...events];
+    setEvents(next);
+    pushToServer({ events: next });
+  };
+
+  const handleUpdateEvent = (id: string, updatedFields: Partial<MeetEvent>) => {
+    const next = events.map(ev => (ev.id === id ? { ...ev, ...updatedFields } : ev));
+    setEvents(next);
+    pushToServer({ events: next });
+  };
+
+  const handleDeleteEvent = (id: string) => {
+    const next = events.filter(ev => ev.id !== id);
+    setEvents(next);
+    pushToServer({ events: next });
+  };
+
+  const handleUpdateTitles = (updatedTitles: Partial<typeof titles>) => {
+    const next = { ...titles, ...updatedTitles };
+    setTitles(next);
+    pushToServer({ titles: next });
   };
 
   // CMS: update intro paragraph texts
   const handleUpdateIntro = (updatedIntro: typeof intro) => {
     setIntro(updatedIntro);
+    pushToServer({ intro: updatedIntro });
   };
 
   // CMS: Achievements CRUD
@@ -117,17 +256,21 @@ export default function App() {
       ...newAch,
       id: `ach_${Date.now()}`,
     };
-    setAchievements(prev => [created, ...prev]);
+    const next = [created, ...achievements];
+    setAchievements(next);
+    pushToServer({ achievements: next });
   };
 
   const handleUpdateAchievement = (id: string, updatedFields: Partial<Achievement>) => {
-    setAchievements(prev =>
-      prev.map(ach => (ach.id === id ? { ...ach, ...updatedFields } : ach))
-    );
+    const next = achievements.map(ach => (ach.id === id ? { ...ach, ...updatedFields } : ach));
+    setAchievements(next);
+    pushToServer({ achievements: next });
   };
 
   const handleDeleteAchievement = (id: string) => {
-    setAchievements(prev => prev.filter(ach => ach.id !== id));
+    const next = achievements.filter(ach => ach.id !== id);
+    setAchievements(next);
+    pushToServer({ achievements: next });
   };
 
   // CMS: Members CRUD
@@ -137,17 +280,21 @@ export default function App() {
       id: `m_${Date.now()}`,
       avatarSeed: newMem.name.toLowerCase().replace(/\s+/g, '_'),
     };
-    setMembers(prev => [...prev, created]);
+    const next = [...members, created];
+    setMembers(next);
+    pushToServer({ members: next });
   };
 
   const handleUpdateMember = (id: string, updatedFields: Partial<Member>) => {
-    setMembers(prev =>
-      prev.map(m => (m.id === id ? { ...m, ...updatedFields } : m))
-    );
+    const next = members.map(m => (m.id === id ? { ...m, ...updatedFields } : m));
+    setMembers(next);
+    pushToServer({ members: next });
   };
 
   const handleDeleteMember = (id: string) => {
-    setMembers(prev => prev.filter(m => m.id !== id));
+    const next = members.filter(m => m.id !== id);
+    setMembers(next);
+    pushToServer({ members: next });
   };
 
   // CMS: Alumni CRUD
@@ -157,17 +304,21 @@ export default function App() {
       id: `a_${Date.now()}`,
       avatarSeed: newAlum.name.toLowerCase().replace(/\s+/g, '_'),
     };
-    setAlumniList(prev => [...prev, created]);
+    const next = [...alumniList, created];
+    setAlumniList(next);
+    pushToServer({ alumniList: next });
   };
 
   const handleUpdateAlumni = (id: string, updatedFields: Partial<Alumni>) => {
-    setAlumniList(prev =>
-      prev.map(a => (a.id === id ? { ...a, ...updatedFields } : a))
-    );
+    const next = alumniList.map(a => (a.id === id ? { ...a, ...updatedFields } : a));
+    setAlumniList(next);
+    pushToServer({ alumniList: next });
   };
 
   const handleDeleteAlumni = (id: string) => {
-    setAlumniList(prev => prev.filter(a => a.id !== id));
+    const next = alumniList.filter(a => a.id !== id);
+    setAlumniList(next);
+    pushToServer({ alumniList: next });
   };
 
   // CMS: Resources CRUD
@@ -176,17 +327,21 @@ export default function App() {
       ...newRes,
       id: `res_${Date.now()}`,
     };
-    setResources(prev => [created, ...prev]);
+    const next = [created, ...resources];
+    setResources(next);
+    pushToServer({ resources: next });
   };
 
   const handleUpdateResource = (id: string, updatedFields: Partial<ResourceItem>) => {
-    setResources(prev =>
-      prev.map(r => (r.id === id ? { ...r, ...updatedFields } : r))
-    );
+    const next = resources.map(r => (r.id === id ? { ...r, ...updatedFields } : r));
+    setResources(next);
+    pushToServer({ resources: next });
   };
 
   const handleDeleteResource = (id: string) => {
-    setResources(prev => prev.filter(r => r.id !== id));
+    const next = resources.filter(r => r.id !== id);
+    setResources(next);
+    pushToServer({ resources: next });
   };
 
   // CMS: FAQ CRUD
@@ -195,17 +350,21 @@ export default function App() {
       ...newFaq,
       id: `faq_${Date.now()}`,
     };
-    setFaqs(prev => [created, ...prev]);
+    const next = [created, ...faqs];
+    setFaqs(next);
+    pushToServer({ faqs: next });
   };
 
   const handleUpdateFAQ = (id: string, updatedFields: Partial<FAQItem>) => {
-    setFaqs(prev =>
-      prev.map(f => (f.id === id ? { ...f, ...updatedFields } : f))
-    );
+    const next = faqs.map(f => (f.id === id ? { ...f, ...updatedFields } : f));
+    setFaqs(next);
+    pushToServer({ faqs: next });
   };
 
   const handleDeleteFAQ = (id: string) => {
-    setFaqs(prev => prev.filter(f => f.id !== id));
+    const next = faqs.filter(f => f.id !== id);
+    setFaqs(next);
+    pushToServer({ faqs: next });
   };
 
   // Renders correct active tab component
@@ -230,6 +389,8 @@ export default function App() {
         return (
           <TeamSection
             isAdmin={isAdmin}
+            titles={titles}
+            onUpdateTitles={handleUpdateTitles}
             members={members}
             alumniList={alumniList}
             onAddMember={handleAddMember}
@@ -241,11 +402,28 @@ export default function App() {
           />
         );
       case 'events':
-        return <EventsSection events={events} onAddEvent={handleAddEvent} />;
+        return (
+          <EventsSection 
+            isAdmin={isAdmin}
+            titles={titles}
+            onUpdateTitles={handleUpdateTitles}
+            events={events} 
+            onAddEvent={handleAddEvent}
+            onUpdateEvent={handleUpdateEvent}
+            onDeleteEvent={handleDeleteEvent}
+            schedulePassword={schedulePassword}
+            onUpdateSchedulePassword={(pw) => {
+              setSchedulePassword(pw);
+              pushToServer({ schedulePassword: pw });
+            }}
+          />
+        );
       case 'resources':
         return (
           <ResourcesSection
             isAdmin={isAdmin}
+            titles={titles}
+            onUpdateTitles={handleUpdateTitles}
             resources={resources}
             faqs={faqs}
             onAddResource={handleAddResource}
@@ -264,7 +442,7 @@ export default function App() {
   return (
     <div id="app-root-container" className="min-h-screen bg-slate-50/50 flex flex-col justify-between selection:bg-slate-900 selection:text-white">
       {/* Portals Master Header */}
-      <Header activeTab={activeTab} setActiveTab={setActiveTab} isAdmin={isAdmin} setIsAdmin={setIsAdmin} />
+      <Header activeTab={activeTab} setActiveTab={setActiveTab} isAdmin={isAdmin} setIsAdmin={setIsAdmin} titles={titles} onUpdateTitles={handleUpdateTitles} />
 
       {/* Main Core Stage viewport */}
       <main id="app-main-content" className="flex-1 max-w-7xl w-full mx-auto px-6 py-10">

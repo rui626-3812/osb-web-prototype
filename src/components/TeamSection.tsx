@@ -10,6 +10,14 @@ import { motion, AnimatePresence } from 'motion/react';
 
 interface TeamSectionProps {
   isAdmin: boolean;
+  titles: {
+    teamTitle: string;
+    teamSubtitle: string;
+    alumniTitle: string;
+    alumniSubtitle: string;
+    [key: string]: string;
+  };
+  onUpdateTitles: (updated: { [key: string]: string }) => void;
   members: Member[];
   alumniList: Alumni[];
   onAddMember: (member: Omit<Member, 'id' | 'avatarSeed'>) => void;
@@ -22,6 +30,8 @@ interface TeamSectionProps {
 
 export default function TeamSection({
   isAdmin,
+  titles,
+  onUpdateTitles,
   members,
   alumniList,
   onAddMember,
@@ -37,6 +47,25 @@ export default function TeamSection({
   // Interactive UI states for Admin Mode
   const [isAddingMember, setIsAddingMember] = useState(false);
   const [isAddingAlumni, setIsAddingAlumni] = useState(false);
+
+  // States to edit section header titles staterfully
+  const [isEditingTeamHeader, setIsEditingTeamHeader] = useState(false);
+  const [teamTitle, setTeamTitle] = useState(titles.teamTitle || "Active Roster");
+  const [teamSubtitle, setTeamSubtitle] = useState(titles.teamSubtitle || "Meet our competitors and coaches");
+
+  const [isEditingAlumniHeader, setIsEditingAlumniHeader] = useState(false);
+  const [alumniTitle, setAlumniTitle] = useState(titles.alumniTitle || "Alumni & Legacy");
+  const [alumniSubtitle, setAlumniSubtitle] = useState(titles.alumniSubtitle || "Previous stars who paved the algorithmic road");
+
+  const handleSaveTeamHeader = () => {
+    onUpdateTitles({ teamTitle, teamSubtitle });
+    setIsEditingTeamHeader(false);
+  };
+
+  const handleSaveAlumniHeader = () => {
+    onUpdateTitles({ alumniTitle, alumniSubtitle });
+    setIsEditingAlumniHeader(false);
+  };
 
   // New member inputs
   const [newMemName, setNewMemName] = useState('');
@@ -214,22 +243,76 @@ export default function TeamSection({
       {/* Filters and search panel */}
       <section id="team-header-panel" className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b border-slate-100 pb-6">
         <div>
-          <div className="flex items-center gap-3">
-            <h2 className="font-sans text-2xl font-bold tracking-tight text-slate-950">Active Roster</h2>
-            {isAdmin && (
-              <button
-                id="add-member-trigger-btn"
-                onClick={() => setIsAddingMember(!isAddingMember)}
-                className="flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-1.5 font-sans text-xs font-bold text-white hover:bg-slate-800 transition cursor-pointer"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Add Competitor / Coach
-              </button>
-            )}
-          </div>
-          <p className="font-mono text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">
-            Meet our competitors and coaches
-          </p>
+          {isEditingTeamHeader && isAdmin ? (
+            <div className="space-y-2 bg-slate-50 p-3 rounded-2xl border border-slate-200 max-w-md">
+              <input
+                type="text"
+                value={teamTitle}
+                onChange={(e) => setTeamTitle(e.target.value)}
+                className="w-full font-sans text-sm font-bold text-slate-950 bg-white p-2 rounded-lg border border-slate-200 focus:outline-none"
+                placeholder="Roster Title"
+              />
+              <textarea
+                value={teamSubtitle}
+                onChange={(e) => setTeamSubtitle(e.target.value)}
+                className="w-full font-sans text-xs text-slate-600 bg-white p-2 rounded-lg border border-slate-200 focus:outline-none"
+                placeholder="Roster Subtitle"
+                rows={2}
+              />
+              <div className="flex gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsEditingTeamHeader(false)}
+                  className="rounded-lg border border-slate-200 bg-white text-slate-600 px-3 py-1 text-[10px] font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveTeamHeader}
+                  className="rounded-lg bg-slate-950 text-white px-3 py-1 text-[10px] font-bold"
+                >
+                  Save Title
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="group relative flex items-center gap-2">
+              <div>
+                <div className="flex items-center gap-3">
+                  <h2 className="font-sans text-2xl font-bold tracking-tight text-slate-950">
+                    {titles.teamTitle || teamTitle}
+                  </h2>
+                  {isAdmin && (
+                    <button
+                      id="add-member-trigger-btn"
+                      onClick={() => setIsAddingMember(!isAddingMember)}
+                      className="flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-1.5 font-sans text-xs font-bold text-white hover:bg-slate-800 transition cursor-pointer shrink-0"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add Competitor / Coach
+                    </button>
+                  )}
+                </div>
+                <p className="font-mono text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">
+                  {titles.teamSubtitle || teamSubtitle}
+                </p>
+              </div>
+              {isAdmin && (
+                <button
+                  onClick={() => {
+                    setTeamTitle(titles.teamTitle || teamTitle);
+                    setTeamSubtitle(titles.teamSubtitle || teamSubtitle);
+                    setIsEditingTeamHeader(true);
+                  }}
+                  className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition"
+                  title="Edit team section headers"
+                >
+                  <Edit className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -563,15 +646,65 @@ export default function TeamSection({
       {/* Alumni Legacy Section */}
       <section id="alumni-portfolio" className="border-t border-slate-200/80 pt-12 space-y-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h3 className="font-sans text-xl font-bold text-slate-950 flex items-center gap-2">
-              <GraduationCap className="h-5 w-5 text-slate-700" />
-              Alumni & Legacy
-            </h3>
-            <p className="font-mono text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">
-              Previous stars who paved the algorithmic road
-            </p>
-          </div>
+          {isEditingAlumniHeader && isAdmin ? (
+            <div className="space-y-2 bg-slate-50 p-3 rounded-2xl border border-slate-200 w-full max-w-md">
+              <input
+                type="text"
+                value={alumniTitle}
+                onChange={(e) => setAlumniTitle(e.target.value)}
+                className="w-full font-sans text-sm font-bold text-slate-950 bg-white p-2 rounded-lg border border-slate-200 focus:outline-none"
+                placeholder="Alumni Title"
+              />
+              <textarea
+                value={alumniSubtitle}
+                onChange={(e) => setAlumniSubtitle(e.target.value)}
+                className="w-full font-sans text-xs text-slate-600 bg-white p-2 rounded-lg border border-slate-200 focus:outline-none"
+                placeholder="Alumni Subtitle"
+                rows={2}
+              />
+              <div className="flex gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsEditingAlumniHeader(false)}
+                  className="rounded-lg border border-slate-200 bg-white text-slate-600 px-3 py-1 text-[10px] font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveAlumniHeader}
+                  className="rounded-lg bg-slate-950 text-white px-3 py-1 text-[10px] font-bold"
+                >
+                  Save Title
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="group relative flex items-center gap-2">
+              <div>
+                <h3 className="font-sans text-xl font-bold text-slate-950 flex items-center gap-2">
+                  <GraduationCap className="h-5 w-5 text-slate-700" />
+                  {titles.alumniTitle || alumniTitle}
+                </h3>
+                <p className="font-mono text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">
+                  {titles.alumniSubtitle || alumniSubtitle}
+                </p>
+              </div>
+              {isAdmin && (
+                <button
+                  onClick={() => {
+                    setAlumniTitle(titles.alumniTitle || alumniTitle);
+                    setAlumniSubtitle(titles.alumniSubtitle || alumniSubtitle);
+                    setIsEditingAlumniHeader(true);
+                  }}
+                  className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition"
+                  title="Edit alumni section headers"
+                >
+                  <Edit className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          )}
 
           {isAdmin && (
             <button

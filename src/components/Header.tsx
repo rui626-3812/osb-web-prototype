@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { Award, Calendar, BookOpen, Users, HelpCircle, GraduationCap, LayoutGrid, Lock, Unlock, X } from 'lucide-react';
+import { Award, Calendar, BookOpen, Users, HelpCircle, GraduationCap, LayoutGrid, Lock, Unlock, X, Waves, Edit, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface HeaderProps {
@@ -12,12 +12,23 @@ interface HeaderProps {
   setActiveTab: (tab: string) => void;
   isAdmin: boolean;
   setIsAdmin: (isAdmin: boolean) => void;
+  titles: {
+    brandName: string;
+    brandSubtitle: string;
+    [key: string]: string;
+  };
+  onUpdateTitles: (updated: { [key: string]: string }) => void;
 }
 
-export default function Header({ activeTab, setActiveTab, isAdmin, setIsAdmin }: HeaderProps) {
+export default function Header({ activeTab, setActiveTab, isAdmin, setIsAdmin, titles, onUpdateTitles }: HeaderProps) {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+
+  // Branding dynamic editing
+  const [isEditingBrand, setIsEditingBrand] = useState(false);
+  const [brandName, setBrandName] = useState(titles.brandName || "OSB Portal");
+  const [brandSubtitle, setBrandSubtitle] = useState(titles.brandSubtitle || "Ocean Science Hub");
 
   const navItems = [
     { id: 'home', label: 'Overview', icon: LayoutGrid },
@@ -40,6 +51,15 @@ export default function Header({ activeTab, setActiveTab, isAdmin, setIsAdmin }:
 
   const handleLogout = () => {
     setIsAdmin(false);
+    setIsEditingBrand(false);
+  };
+
+  const handleSaveBrand = () => {
+    onUpdateTitles({
+      brandName,
+      brandSubtitle,
+    });
+    setIsEditingBrand(false);
   };
 
   return (
@@ -47,13 +67,71 @@ export default function Header({ activeTab, setActiveTab, isAdmin, setIsAdmin }:
       <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-6 py-4 sm:flex-row sm:py-3">
         {/* Brand / Logo */}
         <div id="brand-logo" className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-white shadow-sm">
-            <span className="font-mono text-lg font-bold tracking-wider">Ω</span>
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-950 text-sky-400 shadow-sm border border-slate-800">
+            <Waves className="h-5 w-5 animate-pulse" />
           </div>
-          <div>
-            <h1 className="font-sans text-lg font-semibold tracking-tight text-slate-950">Olympiad Portal</h1>
-            <p className="font-mono text-[10px] uppercase tracking-wide text-slate-500">Coding & Mathematics Hub</p>
-          </div>
+          
+          {isEditingBrand && isAdmin ? (
+            <div className="flex items-center gap-1.5 bg-slate-50 p-1.5 rounded-xl border border-slate-200">
+              <div className="space-y-1">
+                <input
+                  type="text"
+                  value={brandName}
+                  onChange={(e) => setBrandName(e.target.value)}
+                  className="font-sans text-xs font-bold text-slate-950 bg-white px-2 py-0.5 rounded border border-slate-200 focus:outline-none"
+                  placeholder="Portal Name"
+                />
+                <input
+                  type="text"
+                  value={brandSubtitle}
+                  onChange={(e) => setBrandSubtitle(e.target.value)}
+                  className="font-mono text-[9px] text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-200 block focus:outline-none"
+                  placeholder="Subtitle"
+                />
+              </div>
+              <button
+                onClick={handleSaveBrand}
+                className="p-1 rounded-lg bg-slate-950 text-white hover:bg-slate-800"
+                title="Save brand names"
+              >
+                <Check className="h-3.5 w-3.5" />
+              </button>
+              <button
+                onClick={() => {
+                  setBrandName(titles.brandName);
+                  setBrandSubtitle(titles.brandSubtitle);
+                  setIsEditingBrand(false);
+                }}
+                className="p-1 rounded-lg bg-white border border-slate-250 text-slate-500 hover:bg-slate-50"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ) : (
+            <div className="group relative flex items-center gap-2">
+              <div>
+                <h1 className="font-sans text-lg font-semibold tracking-tight text-slate-950 flex items-center gap-1">
+                  {titles.brandName || brandName}
+                </h1>
+                <p className="font-mono text-[10px] uppercase tracking-wide text-slate-500">
+                  {titles.brandSubtitle || brandSubtitle}
+                </p>
+              </div>
+              {isAdmin && (
+                <button
+                  onClick={() => {
+                    setBrandName(titles.brandName || brandName);
+                    setBrandSubtitle(titles.brandSubtitle || brandSubtitle);
+                    setIsEditingBrand(true);
+                  }}
+                  className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition"
+                  title="Edit branding texts"
+                >
+                  <Edit className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Tab Selection */}

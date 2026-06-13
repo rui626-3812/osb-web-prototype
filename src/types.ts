@@ -42,6 +42,7 @@ export interface MeetEvent {
   description: string;
   attendeesCount: number;
   tags: string[];
+  attendees?: Array<{ name: string; date: string }>;
 }
 
 export interface Problem {
