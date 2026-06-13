@@ -198,11 +198,18 @@ export default function Header({ activeTab, setActiveTab, isAdmin, setIsAdmin, t
       {/* Login Modal */}
       <AnimatePresence>
         {showLoginModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+          <div 
+            className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] p-4 bg-slate-900/40 backdrop-blur-xs"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setShowLoginModal(false);
+              }
+            }}
+          >
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
+              initial={{ opacity: 0, y: -10, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.98 }}
               className="relative w-full max-w-sm rounded-3xl border border-slate-200 bg-white p-6 shadow-xl space-y-5"
             >
               <button
@@ -244,13 +251,22 @@ export default function Header({ activeTab, setActiveTab, isAdmin, setIsAdmin, t
                   />
                 </div>
 
-                <button
-                  id="admin-submit-login"
-                  type="submit"
-                  className="w-full rounded-xl bg-slate-900 py-2.5 text-center font-sans text-xs font-semibold text-white hover:bg-slate-800 transition-all cursor-pointer"
-                >
-                  Verify Access
-                </button>
+                <div className="flex gap-2.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowLoginModal(false)}
+                    className="flex-1 rounded-xl bg-slate-100 py-2.5 text-center font-sans text-xs font-semibold text-slate-755 hover:bg-slate-200 transition-all cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    id="admin-submit-login"
+                    type="submit"
+                    className="flex-1 rounded-xl bg-slate-900 py-2.5 text-center font-sans text-xs font-semibold text-white hover:bg-slate-800 transition-all cursor-pointer"
+                  >
+                    Verify Access
+                  </button>
+                </div>
               </form>
             </motion.div>
           </div>

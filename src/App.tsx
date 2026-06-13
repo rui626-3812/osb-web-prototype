@@ -133,6 +133,27 @@ export default function App() {
     return saved ? JSON.parse(saved) : initialFAQs;
   });
 
+  // Ref for initial load and background staging
+  const hasInitialLoadedRef = React.useRef<boolean>(false);
+  const stagedDataRef = React.useRef<any>(null);
+
+  // Apply staged server updates when user switches active navigation tabs
+  useEffect(() => {
+    if (stagedDataRef.current) {
+      const data = stagedDataRef.current;
+      stagedDataRef.current = null;
+      if (data.intro) setIntro(data.intro);
+      if (data.events) setEvents(data.events);
+      if (data.members) setMembers(data.members);
+      if (data.alumniList) setAlumniList(data.alumniList);
+      if (data.achievements) setAchievements(data.achievements);
+      if (data.resources) setResources(data.resources);
+      if (data.faqs) setFaqs(data.faqs);
+      if (data.titles) setTitles(data.titles);
+      if (data.schedulePassword !== undefined) setSchedulePassword(data.schedulePassword);
+    }
+  }, [activeTab]);
+
   // Master server-side state synchronizer with 5s delta checks
   useEffect(() => {
     let active = true;
@@ -150,15 +171,21 @@ export default function App() {
           if (Date.now() - lastPushTimeRef.current < 4000) {
             return;
           }
-          if (data.intro) setIntro(data.intro);
-          if (data.events) setEvents(data.events);
-          if (data.members) setMembers(data.members);
-          if (data.alumniList) setAlumniList(data.alumniList);
-          if (data.achievements) setAchievements(data.achievements);
-          if (data.resources) setResources(data.resources);
-          if (data.faqs) setFaqs(data.faqs);
-          if (data.titles) setTitles(data.titles);
-          if (data.schedulePassword !== undefined) setSchedulePassword(data.schedulePassword);
+          
+          if (!hasInitialLoadedRef.current) {
+            if (data.intro) setIntro(data.intro);
+            if (data.events) setEvents(data.events);
+            if (data.members) setMembers(data.members);
+            if (data.alumniList) setAlumniList(data.alumniList);
+            if (data.achievements) setAchievements(data.achievements);
+            if (data.resources) setResources(data.resources);
+            if (data.faqs) setFaqs(data.faqs);
+            if (data.titles) setTitles(data.titles);
+            if (data.schedulePassword !== undefined) setSchedulePassword(data.schedulePassword);
+            hasInitialLoadedRef.current = true;
+          } else {
+            stagedDataRef.current = data;
+          }
         }
       } catch (err) {
         console.error('Failed to sync master portal state:', err);

@@ -48,14 +48,12 @@ export default function EventsSection({
   onUpdateSchedulePassword = () => {},
 }: EventsSectionProps) {
   const [showScheduleForm, setShowScheduleForm] = useState(false);
-  const [rsvpedIds, setRsvpedIds] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem('olympiad_rsvped_ids');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [rsvpedIds, setRsvpedIds] = useState<string[]>([]);
+  
+  // Custom unregistration form states
+  const [unregisteringEventId, setUnregisteringEventId] = useState<string | null>(null);
+  const [unregistNameInput, setUnregistNameInput] = useState('');
+  const [unregistError, setUnregistError] = useState('');
   
   // Custom header title editing
   const [isEditingEventsHeader, setIsEditingEventsHeader] = useState(false);
@@ -105,26 +103,9 @@ export default function EventsSection({
   });
 
   const handleStartJoin = (eventId: string) => {
-    const targetEvent = events.find(e => e.id === eventId);
-    if (!targetEvent) return;
-    
-    const defaultName = localStorage.getItem('olympiad_rsvp_name') || '';
-    const alreadyRegistered = (targetEvent.attendees || []).some(
-      a => a.name.toLowerCase() === defaultName.trim().toLowerCase()
-    );
-    
-    if (alreadyRegistered && defaultName) {
-      const nextAttendees = (targetEvent.attendees || []).filter(
-        a => a.name.toLowerCase() !== defaultName.trim().toLowerCase()
-      );
-      onUpdateEvent(eventId, { attendees: nextAttendees });
-      const nextRsvped = rsvpedIds.filter(id => id !== eventId);
-      setRsvpedIds(nextRsvped);
-      localStorage.setItem('olympiad_rsvped_ids', JSON.stringify(nextRsvped));
-      return;
-    }
-
     setJoiningEventId(eventId);
+    // Auto-close any active unregister form for this event
+    setUnregisteringEventId(null);
   };
 
   const handleConfirmJoinSubmit = (eventId: string) => {
@@ -147,14 +128,48 @@ export default function EventsSection({
 
     onUpdateEvent(eventId, { attendees: nextAttendees });
     
-    // Sync local store cache
+    // Set transient session rsvped state
     if (!rsvpedIds.includes(eventId)) {
-      const nextRsvped = [...rsvpedIds, eventId];
-      setRsvpedIds(nextRsvped);
-      localStorage.setItem('olympiad_rsvped_ids', JSON.stringify(nextRsvped));
+      setRsvpedIds(prev => [...prev, eventId]);
     }
     localStorage.setItem('olympiad_rsvp_name', nameInput.trim());
     setJoiningEventId(null);
+  };
+
+  const handleConfirmUnregisterSubmit = (eventId: string) => {
+    const trimmedVal = unregistNameInput.trim();
+    if (!trimmedVal) {
+      setUnregistError('Please enter a name.');
+      return;
+    }
+
+    const targetEvent = events.find(e => e.id === eventId);
+    if (!targetEvent) return;
+
+    const currentAttendees = targetEvent.attendees || [];
+    const exists = currentAttendees.some(
+      a => a.name.toLowerCase() === trimmedVal.toLowerCase()
+    );
+
+    if (!exists) {
+      setUnregistError('This name is not registered for this event.');
+      return;
+    }
+
+    // Filter out target registered user from roster (casing & trim safe)
+    const nextAttendees = currentAttendees.filter(
+      a => a.name.toLowerCase() !== trimmedVal.toLowerCase()
+    );
+
+    onUpdateEvent(eventId, { attendees: nextAttendees });
+
+    // Instantly slide off the temporary local sessions registered badge
+    setRsvpedIds(prev => prev.filter(id => id !== eventId));
+
+    // Reset workflow states
+    setUnregistNameInput('');
+    setUnregistError('');
+    setUnregisteringEventId(null);
   };
 
   const handleSaveEventsHeader = () => {
@@ -388,9 +403,7 @@ export default function EventsSection({
               const isEditingThisEvent = editingEventId === event.id;
               
               // Validate user local registered state
-              const defaultStoredName = localStorage.getItem('olympiad_rsvp_name') || '';
-              const rsvpNames = (event.attendees || []).map(a => a.name.toLowerCase());
-              const hasRsvped = rsvpedIds.includes(event.id) || (defaultStoredName && rsvpNames.includes(defaultStoredName.toLowerCase()));
+              const hasRsvped = rsvpedIds.includes(event.id);
               
               // Dynamic attendees count - make the default 0 if no one is listed
               const eventAttendees = (event.attendees && event.attendees.length > 0) ? event.attendees.length : 0;
@@ -668,6 +681,7 @@ export default function EventsSection({
                                     e.stopPropagation();
                                     const nextAttendees = (event.attendees || []).filter(a => a.name !== att.name);
                                     onUpdateEvent(event.id, { attendees: nextAttendees });
+                                    setRsvpedIds(prev => prev.filter(id => id !== event.id));
                                   }}
                                   className="text-slate-400 hover:text-rose-600 transition ml-0.5 p-0.5 cursor-pointer"
                                   title="Delete registration"
@@ -710,18 +724,10 @@ export default function EventsSection({
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                const defaultName = localStorage.getItem('olympiad_rsvp_name') || '';
-                                const nameToCancel = defaultName.trim();
-                                
-                                const nextAttendees = nameToCancel 
-                                  ? (event.attendees || []).filter(a => a.name.toLowerCase() !== nameToCancel.toLowerCase())
-                                  : (event.attendees || []);
-                                  
-                                onUpdateEvent(event.id, { attendees: nextAttendees });
-                                
-                                const nextRsvped = rsvpedIds.filter(id => id !== event.id);
-                                setRsvpedIds(nextRsvped);
-                                localStorage.setItem('olympiad_rsvped_ids', JSON.stringify(nextRsvped));
+                                setUnregisteringEventId(event.id);
+                                setUnregistNameInput('');
+                                setUnregistError('');
+                                setJoiningEventId(null);
                               }}
                               className="rounded-xl bg-rose-50 text-rose-700 border border-rose-100 hover:bg-rose-100 px-3 py-1.5 font-sans text-xs font-bold transition-all cursor-pointer"
                             >
@@ -729,17 +735,33 @@ export default function EventsSection({
                             </button>
                           </div>
                         ) : (
-                          <button
-                            id={`rsvp-btn-${event.id}`}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              handleStartJoin(event.id);
-                            }}
-                            className="rounded-xl bg-slate-950 text-white hover:bg-slate-800 shadow-xs px-4 py-1.5 font-sans text-xs font-bold tracking-tight transition-all cursor-pointer"
-                          >
-                            Join / RSVP
-                          </button>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              id={`rsvp-btn-${event.id}`}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleStartJoin(event.id);
+                              }}
+                              className="rounded-xl bg-slate-950 text-white hover:bg-slate-800 shadow-xs px-4 py-1.5 font-sans text-xs font-bold tracking-tight transition-all cursor-pointer"
+                            >
+                              Join / RSVP
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setUnregisteringEventId(event.id);
+                                setUnregistNameInput('');
+                                setUnregistError('');
+                                setJoiningEventId(null);
+                              }}
+                              className="rounded-xl bg-slate-100 text-slate-700 border border-slate-205 hover:bg-slate-202 px-3 py-1.5 font-sans text-xs font-bold transition-all cursor-pointer"
+                            >
+                              Unregister
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -780,6 +802,56 @@ export default function EventsSection({
                           >
                             Join Meet
                           </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Inline Student Unregistration Dialog */}
+                    {unregisteringEventId === event.id && (
+                      <div className="mt-4 bg-rose-50/50 border border-rose-100 rounded-2xl p-4 space-y-3 animate-fadeIn">
+                        <div className="flex justify-between items-center">
+                          <span className="font-sans text-xs font-bold text-rose-900">Cancel Your Registration</span>
+                          <button
+                            onClick={() => { setUnregisteringEventId(null); setUnregistError(''); }}
+                            className="text-slate-400 hover:text-rose-700 transition p-1"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-rose-800 font-sans leading-normal">
+                          To unregister, enter the exact name you signed up with:
+                        </p>
+                        <div className="flex flex-col gap-2">
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              required
+                              placeholder="Name used during RSVP..."
+                              value={unregistNameInput}
+                              onChange={(e) => {
+                                setUnregistNameInput(e.target.value);
+                                setUnregistError('');
+                              }}
+                              className="flex-1 rounded-xl border border-rose-200 bg-white py-1.5 px-3 font-sans text-xs text-slate-800 focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  handleConfirmUnregisterSubmit(event.id);
+                                }
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleConfirmUnregisterSubmit(event.id)}
+                              className="rounded-xl bg-rose-700 hover:bg-rose-800 text-white px-4 py-1.5 font-sans text-xs font-semibold shadow-xs transition cursor-pointer"
+                            >
+                              Unregister
+                            </button>
+                          </div>
+                          {unregistError && (
+                            <p className="text-[11px] font-sans font-semibold text-rose-600">
+                              {unregistError}
+                            </p>
+                          )}
                         </div>
                       </div>
                     )}
