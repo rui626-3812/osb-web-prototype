@@ -7,18 +7,7 @@ import React, { useState } from 'react';
 import { MeetEvent } from '../types';
 import { Calendar, Clock, MapPin, Plus, Check, MessageSquare, Tag, Users, Edit, Trash2, X, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-
-// Timezone-safe local date parser to prevent UTC offset shifting (month, day off by 1)
-const parseLocalDateString = (dateStr: string): Date => {
-  const parts = dateStr.split('-');
-  if (parts.length === 3) {
-    const y = parseInt(parts[0], 10);
-    const m = parseInt(parts[1], 10) - 1; // 0-indexed month
-    const d = parseInt(parts[2], 10);
-    return new Date(y, m, d, 12, 0, 0); // safe mid-day setting
-  }
-  return new Date(dateStr);
-};
+import { parseLocalDateString } from '../utils';
 
 interface EventsSectionProps {
   isAdmin: boolean;
@@ -1042,21 +1031,35 @@ export default function EventsSection({
                     {navDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                   </h4>
                 </div>
-                <div className="flex gap-1">
+                <div className="flex items-center gap-1.5">
                   <button
-                    onClick={() => setNavDate(new Date(navDate.getFullYear(), navDate.getMonth() - 1, 1))}
-                    className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition cursor-pointer"
-                    title="Previous Month"
+                    onClick={() => {
+                      const today = new Date();
+                      setNavDate(today);
+                      const todayVal = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                      setSelectedDateFilter(todayVal);
+                    }}
+                    className="flex items-center justify-center rounded-lg border border-slate-200 bg-white px-2 py-1 font-sans text-[10px] font-bold text-slate-700 hover:bg-slate-50 hover:text-slate-900 shadow-2xs transition active:scale-95 cursor-pointer"
+                    title="Jump to Today's Date"
                   >
-                    <ChevronLeft className="h-4 w-4" />
+                    Today
                   </button>
-                  <button
-                    onClick={() => setNavDate(new Date(navDate.getFullYear(), navDate.getMonth() + 1, 1))}
-                    className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition cursor-pointer"
-                    title="Next Month"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
+                  <div className="flex gap-0.5 bg-slate-50 border border-slate-250/60 rounded-lg p-0.5">
+                    <button
+                      onClick={() => setNavDate(new Date(navDate.getFullYear(), navDate.getMonth() - 1, 1))}
+                      className="p-1 rounded-md hover:bg-white text-slate-500 hover:text-slate-800 transition cursor-pointer"
+                      title="Previous Month"
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={() => setNavDate(new Date(navDate.getFullYear(), navDate.getMonth() + 1, 1))}
+                      className="p-1 rounded-md hover:bg-white text-slate-500 hover:text-slate-800 transition cursor-pointer"
+                      title="Next Month"
+                    >
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -1080,11 +1083,14 @@ export default function EventsSection({
                     gridElements.push(<div key={`empty-${i}`} />);
                   }
 
+                  const sysToday = new Date();
+
                   for (let day = 1; day <= maxDays; day++) {
                     const dateVal = `${cyIndex}-${String(cmIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                     const dayEventsList = events.filter(e => e.date === dateVal);
                     const hasMeetsOnThisDay = dayEventsList.length > 0;
                     const isFocusDate = selectedDateFilter === dateVal;
+                    const isToday = cyIndex === sysToday.getFullYear() && cmIndex === sysToday.getMonth() && day === sysToday.getDate();
 
                     let bgStyles = "bg-white text-slate-800 hover:bg-slate-50";
                     if (isFocusDate) {
@@ -1100,6 +1106,11 @@ export default function EventsSection({
                       }
                     }
 
+                    let todayStyles = "";
+                    if (isToday) {
+                      todayStyles = isFocusDate ? "ring-2 ring-slate-950 ring-offset-1" : "ring-1.5 ring-slate-350 ring-offset-1";
+                    }
+
                     gridElements.push(
                       <button
                         key={`day-${day}`}
@@ -1110,7 +1121,7 @@ export default function EventsSection({
                             setSelectedDateFilter(dateVal);
                           }
                         }}
-                        className={`h-7 w-7 rounded-xl text-xs flex flex-col items-center justify-center transition-all cursor-pointer relative ${bgStyles}`}
+                        className={`h-7 w-7 rounded-xl text-xs flex flex-col items-center justify-center transition-all cursor-pointer relative ${bgStyles} ${todayStyles}`}
                         title={hasMeetsOnThisDay ? `${dayEventsList.length} events scheduled: ${dayEventsList.map(e => e.title).join(', ')}` : undefined}
                       >
                         <span>{day}</span>

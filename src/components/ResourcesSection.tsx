@@ -4,9 +4,10 @@
  */
 
 import React, { useState } from 'react';
-import { ResourceItem, FAQItem } from '../types';
-import { ExternalLink, BookOpen, HelpCircle, ChevronDown, ChevronUp, Link as LinkIcon, Award, Compass, Plus, Edit, Trash2, Check, X } from 'lucide-react';
+import { ResourceItem, FAQItem, ResourceCategory } from '../types';
+import { ExternalLink, BookOpen, HelpCircle, ChevronDown, ChevronUp, Link as LinkIcon, Award, Compass, Plus, Edit, Trash2, Check, X, Palette, Settings2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { resolveCategoryStyle } from '../utils';
 
 interface ResourcesSectionProps {
   isAdmin: boolean;
@@ -26,6 +27,8 @@ interface ResourcesSectionProps {
   onAddFAQ: (faq: Omit<FAQItem, 'id'>) => void;
   onUpdateFAQ: (id: string, updated: Partial<FAQItem>) => void;
   onDeleteFAQ: (id: string) => void;
+  categories: ResourceCategory[];
+  onUpdateCategories: (categories: ResourceCategory[]) => void;
 }
 
 export default function ResourcesSection({
@@ -40,6 +43,8 @@ export default function ResourcesSection({
   onAddFAQ,
   onUpdateFAQ,
   onDeleteFAQ,
+  categories,
+  onUpdateCategories,
 }: ResourcesSectionProps) {
   const [expandedFaqId, setExpandedFaqId] = useState<string | null>(null);
   const [selectedFaqCategory, setSelectedFaqCategory] = useState<'All' | 'General' | 'Requirements' | 'Contests'>('All');
@@ -69,7 +74,7 @@ export default function ResourcesSection({
 
   // New Resource values
   const [newResTitle, setNewResTitle] = useState('');
-  const [newResCategory, setNewResCategory] = useState<'Algorithms' | 'Mathematics' | 'Platform' | 'Guide'>('Algorithms');
+  const [newResCategory, setNewResCategory] = useState<string>(categories[0]?.id || 'Algorithms');
   const [newResType, setNewResType] = useState<'Book' | 'Website' | 'Cheatsheet' | 'Platform'>('Website');
   const [newResUrl, setNewResUrl] = useState('');
   const [newResDesc, setNewResDesc] = useState('');
@@ -82,7 +87,40 @@ export default function ResourcesSection({
   // Edit states
   const [editingResId, setEditingResId] = useState<string | null>(null);
   const [editResTitle, setEditResTitle] = useState('');
-  const [editResCategory, setEditResCategory] = useState<'Algorithms' | 'Mathematics' | 'Platform' | 'Guide'>('Algorithms');
+  const [editResCategory, setEditResCategory] = useState<string>('Algorithms');
+  
+  // Category customization helper definitions
+  const COLOR_PRESETS = [
+    { id: 'sky', label: 'Sky Blue', bg: 'bg-sky-50', text: 'text-sky-700', border: 'border-sky-150' },
+    { id: 'amber', label: 'Amber Orange', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-150' },
+    { id: 'emerald', label: 'Emerald Green', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-150' },
+    { id: 'indigo', label: 'Indigo Purple', bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-150' },
+    { id: 'rose', label: 'Rose Red', bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-150' },
+    { id: 'violet', label: 'Violet Lavender', bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-150' },
+    { id: 'teal', label: 'Teal Cyan', bg: 'bg-teal-50', text: 'text-teal-700', border: 'border-teal-150' },
+    { id: 'slate', label: 'Slate Gray', bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-150' }
+  ];
+
+  // Category management hooks
+  const [isManagingCategories, setIsManagingCategories] = useState(false);
+  const [newCatId, setNewCatId] = useState('');
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatPreset, setNewCatPreset] = useState('sky');
+  
+  // Customize styling models
+  const [isCustomStyleChecked, setIsCustomStyleChecked] = useState(false);
+  const [customBg, setCustomBg] = useState('bg-slate-100');
+  const [customText, setCustomText] = useState('text-slate-700');
+  const [customBorder, setCustomBorder] = useState('border-slate-200');
+
+  // Tracking categories currently editing inline
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [editingCategoryName, setEditingCategoryName] = useState('');
+  const [editingCategoryPreset, setEditingCategoryPreset] = useState('sky');
+  const [isEditingCustomStyle, setIsEditingCustomStyle] = useState(false);
+  const [editingCustomBg, setEditingCustomBg] = useState('');
+  const [editingCustomText, setEditingCustomText] = useState('');
+  const [editingCustomBorder, setEditingCustomBorder] = useState('');
   const [editResType, setEditResType] = useState<'Book' | 'Website' | 'Cheatsheet' | 'Platform'>('Website');
   const [editResUrl, setEditResUrl] = useState('');
   const [editResDesc, setEditResDesc] = useState('');
@@ -172,6 +210,111 @@ export default function ResourcesSection({
     showToast('FAQ entry updated.');
   };
 
+  // Category management CRUDS
+  const startEditingCategory = (cat: ResourceCategory) => {
+    setEditingCategoryId(cat.id);
+    setEditingCategoryName(cat.name);
+    setEditingCategoryPreset(cat.colorPreset || 'custom');
+    if (cat.colorPreset && cat.colorPreset !== 'custom') {
+      setIsEditingCustomStyle(false);
+      setEditingCustomBg('');
+      setEditingCustomText('');
+      setEditingCustomBorder('');
+    } else {
+      setIsEditingCustomStyle(true);
+      setEditingCustomBg(cat.bgClass);
+      setEditingCustomText(cat.textClass);
+      setEditingCustomBorder(cat.borderClass);
+    }
+  };
+
+  const handleSaveCategoryEdit = (id: string) => {
+    if (!editingCategoryName.trim()) return;
+    
+    let bg = editingCustomBg;
+    let text = editingCustomText;
+    let border = editingCustomBorder;
+    
+    if (!isEditingCustomStyle) {
+      const preset = COLOR_PRESETS.find(p => p.id === editingCategoryPreset);
+      if (preset) {
+        bg = preset.bg;
+        text = preset.text;
+        border = preset.border;
+      }
+    }
+    
+    const nextCategories = categories.map(cat => {
+      if (cat.id === id) {
+        return {
+          ...cat,
+          name: editingCategoryName,
+          bgClass: bg || 'bg-slate-50',
+          textClass: text || 'text-slate-700',
+          borderClass: border || 'border-slate-150',
+          colorPreset: isEditingCustomStyle ? 'custom' : editingCategoryPreset
+        };
+      }
+      return cat;
+    });
+    
+    onUpdateCategories(nextCategories);
+    setEditingCategoryId(null);
+    showToast('Category updated successfully.');
+  };
+
+  const handleDeleteCategory = (id: string) => {
+    if (categories.length <= 1) {
+      alert('You must keep at least one category!');
+      return;
+    }
+    if (confirm(`Delete the "${id}" category? Resources belonging to this category will fallback to default gray.`)) {
+      onUpdateCategories(categories.filter(cat => cat.id !== id));
+      showToast('Category deleted.');
+    }
+  };
+
+  const handleAddCategorySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCatId || !newCatName) return;
+    
+    // Check for duplicate ID
+    const cleanId = newCatId.trim().replace(/\s+/g, '_');
+    if (categories.some(cat => cat.id.toLowerCase() === cleanId.toLowerCase())) {
+      alert('Category with this ID already exists!');
+      return;
+    }
+    
+    let bg = customBg;
+    let text = customText;
+    let border = customBorder;
+    
+    if (!isCustomStyleChecked) {
+      const preset = COLOR_PRESETS.find(p => p.id === newCatPreset);
+      if (preset) {
+        bg = preset.bg;
+        text = preset.text;
+        border = preset.border;
+      }
+    }
+    
+    const newCategory: ResourceCategory = {
+      id: cleanId,
+      name: newCatName,
+      bgClass: bg || 'bg-slate-50',
+      textClass: text || 'text-slate-750',
+      borderClass: border || 'border-slate-200',
+      colorPreset: isCustomStyleChecked ? 'custom' : newCatPreset
+    };
+    
+    onUpdateCategories([...categories, newCategory]);
+    setNewCatId('');
+    setNewCatName('');
+    setNewCatPreset('sky');
+    setIsCustomStyleChecked(false);
+    showToast('New customizable category added.');
+  };
+
   // Filter FAQs based on selected category
   const filteredFaqs = faqs.filter(faq => {
     if (selectedFaqCategory === 'All') return true;
@@ -258,16 +401,301 @@ export default function ResourcesSection({
           )}
 
           {isAdmin && (
-            <button
-              id="add-res-trigger-btn"
-              onClick={() => setIsAddingResource(!isAddingResource)}
-              className="flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-1.5 font-sans text-xs font-bold text-white hover:bg-slate-800 transition cursor-pointer"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Add Resource Reference
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                id="manage-categories-btn"
+                onClick={() => {
+                  setIsManagingCategories(!isManagingCategories);
+                  setIsAddingResource(false);
+                }}
+                className="flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-1.5 font-sans text-xs font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+              >
+                <Palette className="h-3.5 w-3.5 text-slate-600" />
+                {isManagingCategories ? "Close Category Customizer" : "Customize Category Classes"}
+              </button>
+              <button
+                id="add-res-trigger-btn"
+                onClick={() => {
+                  setIsAddingResource(!isAddingResource);
+                  setIsManagingCategories(false);
+                }}
+                className="flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-1.5 font-sans text-xs font-bold text-white hover:bg-slate-800 transition cursor-pointer"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add Resource Reference
+              </button>
+            </div>
           )}
         </div>
+
+        {/* Category Customization Manager Panel */}
+        <AnimatePresence>
+          {isManagingCategories && (
+            <motion.div
+              id="category-customizer-panel"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="bg-slate-50 border border-slate-200 rounded-2xl p-6 space-y-6 shadow-inner"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-slate-250">
+                <div>
+                  <h3 className="font-sans text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                    <Palette className="h-4 w-4 text-slate-700" /> Resource Category Class Customizer
+                  </h3>
+                  <p className="font-sans text-xs text-slate-500">
+                    Fully customize category text, display names, and color presets in real time.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsManagingCategories(false)}
+                  className="rounded-lg p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* Current Categories List */}
+              <div className="space-y-3">
+                <h4 className="font-sans text-xs font-bold text-slate-700 uppercase tracking-wider">Active Categories</h4>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {categories.map((cat) => {
+                    const isEditingThisCat = editingCategoryId === cat.id;
+                    const catStyle = `${cat.bgClass} ${cat.textClass} ${cat.borderClass}`;
+                    
+                    return (
+                      <div
+                        key={cat.id}
+                        className="flex flex-col justify-between border border-slate-200 bg-white p-4 rounded-xl hover:border-slate-300 transition"
+                      >
+                        {isEditingThisCat ? (
+                          <div className="space-y-4 w-full">
+                            <div className="space-y-1">
+                              <label className="font-sans text-[10px] font-bold text-slate-500 uppercase">Category Name (Text)</label>
+                              <input
+                                type="text"
+                                value={editingCategoryName}
+                                onChange={(e) => setEditingCategoryName(e.target.value)}
+                                className="w-full rounded-lg border border-slate-200 p-2 font-sans text-xs focus:outline-none focus:border-slate-400"
+                                placeholder="e.g. Advanced Networks"
+                              />
+                            </div>
+
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <label className="font-sans text-[10px] font-bold text-slate-500 uppercase">Color Preset</label>
+                                <label className="inline-flex items-center gap-1 font-sans text-[10px] text-slate-600 cursor-pointer select-none">
+                                  <input
+                                    type="checkbox"
+                                    checked={isEditingCustomStyle}
+                                    onChange={(e) => setIsEditingCustomStyle(e.target.checked)}
+                                    className="rounded border-slate-200 text-slate-900"
+                                  />
+                                  <span>Custom Tailwind Classes</span>
+                                </label>
+                              </div>
+
+                              {!isEditingCustomStyle ? (
+                                <div className="grid grid-cols-4 gap-1.5 pt-1">
+                                  {COLOR_PRESETS.map((preset) => (
+                                    <button
+                                      key={preset.id}
+                                      type="button"
+                                      onClick={() => setEditingCategoryPreset(preset.id)}
+                                      className={`rounded-lg border p-1 text-[10px] font-medium transition ${
+                                        editingCategoryPreset === preset.id
+                                          ? 'border-slate-900 bg-slate-900 text-white font-bold'
+                                          : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700'
+                                      }`}
+                                    >
+                                      {preset.label.split(' ')[0]}
+                                    </button>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="grid grid-cols-3 gap-2 pt-1">
+                                  <div>
+                                    <span className="text-[9px] text-slate-400 font-mono">Bg Class</span>
+                                    <input
+                                      type="text"
+                                      value={editingCustomBg}
+                                      onChange={(e) => setEditingCustomBg(e.target.value)}
+                                      placeholder="bg-slate-50"
+                                      className="w-full rounded-lg border border-slate-200 p-1.5 font-mono text-[10px]"
+                                    />
+                                  </div>
+                                  <div>
+                                    <span className="text-[9px] text-slate-400 font-mono">Text Class</span>
+                                    <input
+                                      type="text"
+                                      value={editingCustomText}
+                                      onChange={(e) => setEditingCustomText(e.target.value)}
+                                      placeholder="text-slate-700"
+                                      className="w-full rounded-lg border border-slate-200 p-1.5 font-mono text-[10px]"
+                                    />
+                                  </div>
+                                  <div>
+                                    <span className="text-[9px] text-slate-400 font-mono">Border Class</span>
+                                    <input
+                                      type="text"
+                                      value={editingCustomBorder}
+                                      onChange={(e) => setEditingCustomBorder(e.target.value)}
+                                      placeholder="border-slate-150"
+                                      className="w-full rounded-lg border border-slate-200 p-1.5 font-mono text-[10px]"
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex gap-2 justify-end pt-1">
+                              <button
+                                type="button"
+                                onClick={() => setEditingCategoryId(null)}
+                                className="rounded-lg border border-slate-200 px-3 py-1 font-sans text-[10px] font-bold text-slate-600 hover:bg-slate-55"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleSaveCategoryEdit(cat.id)}
+                                className="rounded-lg bg-slate-900 text-white px-3 py-1 font-sans text-[10px] font-bold hover:bg-slate-800"
+                              >
+                                Save Changes
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between w-full">
+                            <div className="space-y-1.5">
+                              <span className="font-mono text-[9px] font-bold text-slate-400 uppercase tracking-wider block">ID: {cat.id}</span>
+                              <div className="flex items-center gap-2">
+                                <span className={`inline-flex rounded-md border px-2 py-0.5 font-sans text-[10px] font-bold uppercase ${catStyle}`}>
+                                  {cat.name}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                title="Edit Category Styling/Text"
+                                onClick={() => startEditingCategory(cat)}
+                                className="p-1.5 hover:bg-slate-50 border border-slate-100 rounded-lg text-slate-500 hover:text-slate-800"
+                              >
+                                <Edit className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                title="Delete Category"
+                                onClick={() => handleDeleteCategory(cat.id)}
+                                className="p-1.5 hover:bg-rose-50 border border-slate-100 hover:border-rose-200 rounded-lg text-slate-400 hover:text-rose-600"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Add New Category Form Row */}
+              <form onSubmit={handleAddCategorySubmit} className="border-t border-slate-200 pt-5 space-y-4">
+                <h4 className="font-sans text-xs font-bold text-slate-700 uppercase tracking-wider">Create New Resource Division (Class)</h4>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="space-y-1">
+                    <label className="font-sans text-[11px] font-bold text-slate-600">Unique ID (Alphanumeric)</label>
+                    <input
+                      type="text"
+                      required
+                      value={newCatId}
+                      onChange={(e) => setNewCatId(e.target.value)}
+                      placeholder="e.g. Advanced_Math"
+                      className="w-full rounded-lg border border-slate-200 bg-white p-2 font-sans text-xs focus:outline-none"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="font-sans text-[11px] font-bold text-slate-600">Category Name (Display Label)</label>
+                    <input
+                      type="text"
+                      required
+                      value={newCatName}
+                      onChange={(e) => setNewCatName(e.target.value)}
+                      placeholder="e.g. Advanced Math & Geometry"
+                      className="w-full rounded-lg border border-slate-200 bg-white p-2 font-sans text-xs focus:outline-none"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between mb-0.5">
+                      <label className="font-sans text-[11px] font-bold text-slate-600">Styling Preset</label>
+                      <label className="inline-flex items-center gap-1 font-sans text-[9px] text-slate-600 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={isCustomStyleChecked}
+                          onChange={(e) => setIsCustomStyleChecked(e.target.checked)}
+                          className="rounded border-slate-200 text-slate-900"
+                        />
+                        <span>Custom CSS</span>
+                      </label>
+                    </div>
+
+                    {!isCustomStyleChecked ? (
+                      <select
+                        value={newCatPreset}
+                        onChange={(e) => setNewCatPreset(e.target.value)}
+                        className="w-full rounded-lg border border-slate-200 bg-white p-2 font-sans text-xs focus:outline-none"
+                      >
+                        {COLOR_PRESETS.map((preset) => (
+                          <option key={preset.id} value={preset.id}>
+                            {preset.label} Settings
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="flex gap-1 animate-fade-in">
+                        <input
+                          type="text"
+                          value={customBg}
+                          onChange={(e) => setCustomBg(e.target.value)}
+                          placeholder="bg-red-50"
+                          title="Background Class"
+                          className="w-1/3 rounded-lg border border-slate-200 p-1.5 font-mono text-[10px]"
+                        />
+                        <input
+                          type="text"
+                          value={customText}
+                          onChange={(e) => setCustomText(e.target.value)}
+                          placeholder="text-red-700"
+                          title="Text Class"
+                          className="w-1/3 rounded-lg border border-slate-200 p-1.5 font-mono text-[10px]"
+                        />
+                        <input
+                          type="text"
+                          value={customBorder}
+                          onChange={(e) => setCustomBorder(e.target.value)}
+                          placeholder="border-red-200"
+                          title="Border Class"
+                          className="w-1/3 rounded-lg border border-slate-200 p-1.5 font-mono text-[10px]"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    className="flex items-center gap-1.5 rounded-xl bg-slate-900 text-white font-sans text-xs font-semibold py-2 px-5 hover:bg-slate-800 transition shadow-xs"
+                  >
+                    <Plus className="h-4 w-4" /> Add Category & Preset
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Add Resource Block */}
         <AnimatePresence>
@@ -318,13 +746,14 @@ export default function ResourcesSection({
                 <label className="font-sans text-[11px] font-bold text-slate-655">Category Class</label>
                 <select
                   value={newResCategory}
-                  onChange={(e) => setNewResCategory(e.target.value as any)}
+                  onChange={(e) => setNewResCategory(e.target.value)}
                   className="w-full rounded-lg border border-slate-200 bg-white p-2.5 font-sans text-xs focus:outline-none"
                 >
-                  <option value="Algorithms">Algorithms & Graphs</option>
-                  <option value="Mathematics">Mathematics & Putnam</option>
-                  <option value="Platform">Platform & Coding Arena</option>
-                  <option value="Guide">Study Guides / Cheatsheets</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -342,7 +771,7 @@ export default function ResourcesSection({
               </div>
 
               <div className="sm:col-span-2 space-y-1">
-                <label className="font-sans text-[11px] font-bold text-slate-650">Short Summary description</label>
+                <label className="font-sans text-[11px] font-bold text-slate-655">Short Summary description</label>
                 <textarea
                   rows={2}
                   required
@@ -363,7 +792,7 @@ export default function ResourcesSection({
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-slate-900 text-white hover:bg-slate-800 py-2 px-5 font-sans text-xs font-semibold"
+                  className="rounded-xl bg-slate-905 bg-slate-900 text-white hover:bg-slate-800 py-2 px-5 font-sans text-xs font-semibold"
                 >
                   Log Reference File
                 </button>
@@ -376,16 +805,7 @@ export default function ResourcesSection({
           {resources.map((res) => {
             const isEditingThisRes = editingResId === res.id;
 
-            let catBadge = "bg-slate-100 text-slate-600 border-slate-200";
-            if (res.category === 'Algorithms') {
-              catBadge = "bg-sky-50 text-sky-700 border-sky-150";
-            } else if (res.category === 'Mathematics') {
-              catBadge = "bg-amber-50 text-amber-700 border-amber-150";
-            } else if (res.category === 'Platform') {
-              catBadge = "bg-emerald-50 text-emerald-700 border-emerald-150";
-            } else if (res.category === 'Guide') {
-              catBadge = "bg-indigo-50 text-indigo-750 border-indigo-150";
-            }
+            const { badgeClass: catBadge, displayName: catName } = resolveCategoryStyle(res.category, categories);
 
             if (isEditingThisRes) {
               return (
@@ -412,13 +832,14 @@ export default function ResourcesSection({
                     />
                     <select
                       value={editResCategory}
-                      onChange={(e) => setEditResCategory(e.target.value as any)}
+                      onChange={(e) => setEditResCategory(e.target.value)}
                       className="w-full rounded-lg border border-slate-200 bg-white p-1.5 font-sans text-[10px] focus:outline-none"
                     >
-                      <option value="Algorithms">Algorithms</option>
-                      <option value="Mathematics">Mathematics</option>
-                      <option value="Platform">Platform</option>
-                      <option value="Guide">Study Guides</option>
+                      {categories.map((cat) => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.name}
+                        </option>
+                      ))}
                     </select>
                     <select
                       value={editResType}
@@ -469,7 +890,7 @@ export default function ResourcesSection({
                     <button
                       title="Edit reference"
                       onClick={() => startEditRes(res)}
-                      className="p-1 rounded-md hover:bg-slate-100 text-slate-500 hover:text-slate-850"
+                      className="p-1 rounded-md hover:bg-slate-100 text-slate-500 hover:text-slate-800"
                     >
                       <Edit className="h-3 w-3" />
                     </button>
@@ -491,7 +912,7 @@ export default function ResourcesSection({
                 <div className="space-y-3.5">
                   <div className="flex items-center justify-between">
                     <span className={`inline-flex rounded-md border px-2 py-0.5 font-mono text-[9px] font-bold uppercase ${catBadge}`}>
-                      {res.category}
+                      {catName}
                     </span>
                     <span className="font-mono text-[9px] text-slate-400 uppercase font-semibold mr-8">
                       {res.type}

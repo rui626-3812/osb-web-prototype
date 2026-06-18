@@ -68,10 +68,19 @@ export interface ProblemSet {
   problems: Problem[];
 }
 
+export interface ResourceCategory {
+  id: string;
+  name: string;
+  bgClass: string;
+  textClass: string;
+  borderClass: string;
+  colorPreset?: string; // e.g. "sky" | "amber" | "emerald" | "indigo" | "rose" | "violet" | "teal" | "slate" | "custom"
+}
+
 export interface ResourceItem {
   id: string;
   title: string;
-  category: 'Algorithms' | 'Mathematics' | 'Platform' | 'Guide';
+  category: string;
   type: 'Book' | 'Website' | 'Cheatsheet' | 'Platform';
   url: string;
   description: string;

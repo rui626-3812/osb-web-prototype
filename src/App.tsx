@@ -19,7 +19,7 @@ import {
   initialFAQs,
 } from './data';
 
-import { MeetEvent, Member, Alumni, Achievement, ResourceItem, FAQItem } from './types';
+import { MeetEvent, Member, Alumni, Achievement, ResourceItem, FAQItem, ResourceCategory } from './types';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function App() {
@@ -40,6 +40,7 @@ export default function App() {
     faqs?: FAQItem[];
     titles?: typeof titles;
     schedulePassword?: string;
+    resourceCategories?: ResourceCategory[];
   }) => {
     lastPushTimeRef.current = Date.now();
     try {
@@ -49,17 +50,21 @@ export default function App() {
         body: JSON.stringify(payload),
       });
       if (response.ok) {
-        const result = await response.json();
-        if (result && result.success && result.data) {
-          if (payload.intro) setIntro(result.data.intro);
-          if (payload.events) setEvents(result.data.events);
-          if (payload.members) setMembers(result.data.members);
-          if (payload.alumniList) setAlumniList(result.data.alumniList);
-          if (payload.achievements) setAchievements(result.data.achievements);
-          if (payload.resources) setResources(result.data.resources);
-          if (payload.faqs) setFaqs(result.data.faqs);
-          if (payload.titles) setTitles(result.data.titles);
-          if (payload.schedulePassword !== undefined) setSchedulePassword(result.data.schedulePassword);
+        const ct = response.headers.get('content-type') || '';
+        if (ct.includes('application/json')) {
+          const result = await response.json();
+          if (result && result.success && result.data) {
+            if (payload.intro) setIntro(result.data.intro);
+            if (payload.events) setEvents(result.data.events);
+            if (payload.members) setMembers(result.data.members);
+            if (payload.alumniList) setAlumniList(result.data.alumniList);
+            if (payload.achievements) setAchievements(result.data.achievements);
+            if (payload.resources) setResources(result.data.resources);
+            if (payload.faqs) setFaqs(result.data.faqs);
+            if (payload.titles) setTitles(result.data.titles);
+            if (payload.schedulePassword !== undefined) setSchedulePassword(result.data.schedulePassword);
+            if (payload.resourceCategories) setResourceCategories(result.data.resourceCategories);
+          }
         }
       }
     } catch (err) {
@@ -133,6 +138,23 @@ export default function App() {
     return saved ? JSON.parse(saved) : initialFAQs;
   });
 
+  const [resourceCategories, setResourceCategories] = useState<ResourceCategory[]>(() => {
+    const saved = localStorage.getItem('olympiad_portal_resource_categories');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        // Fallback below
+      }
+    }
+    return [
+      { id: "Algorithms", name: "Algorithms & Graphs", bgClass: "bg-sky-50", textClass: "text-sky-700", borderClass: "border-sky-150", colorPreset: "sky" },
+      { id: "Mathematics", name: "Mathematics & Putnam", bgClass: "bg-amber-50", textClass: "text-amber-700", borderClass: "border-amber-150", colorPreset: "amber" },
+      { id: "Platform", name: "Platform & Coding Arena", bgClass: "bg-emerald-50", textClass: "text-emerald-700", borderClass: "border-emerald-150", colorPreset: "emerald" },
+      { id: "Guide", name: "Study Guides / Cheatsheets", bgClass: "bg-indigo-50", textClass: "text-indigo-750", borderClass: "border-indigo-150", colorPreset: "indigo" }
+    ];
+  });
+
   // Ref for initial load and background staging
   const hasInitialLoadedRef = React.useRef<boolean>(false);
   const stagedDataRef = React.useRef<any>(null);
@@ -151,6 +173,7 @@ export default function App() {
       if (data.faqs) setFaqs(data.faqs);
       if (data.titles) setTitles(data.titles);
       if (data.schedulePassword !== undefined) setSchedulePassword(data.schedulePassword);
+      if (data.resourceCategories) setResourceCategories(data.resourceCategories);
     }
   }, [activeTab]);
 
@@ -165,6 +188,10 @@ export default function App() {
       try {
         const response = await fetch('/api/data');
         if (!response.ok) throw new Error('Failed to load server data');
+        const ct = response.headers.get('content-type') || '';
+        if (!ct.includes('application/json')) {
+          return;
+        }
         const data = await response.json();
         if (active && data) {
           // Double guard check after network round-trip completes
@@ -182,6 +209,7 @@ export default function App() {
             if (data.faqs) setFaqs(data.faqs);
             if (data.titles) setTitles(data.titles);
             if (data.schedulePassword !== undefined) setSchedulePassword(data.schedulePassword);
+            if (data.resourceCategories) setResourceCategories(data.resourceCategories);
             hasInitialLoadedRef.current = true;
           } else {
             stagedDataRef.current = data;
@@ -404,6 +432,7 @@ export default function App() {
             achievements={achievements}
             upcomingEventsCount={events.length}
             membersCount={members.length}
+            resourcesCount={resources.length}
             onNavigate={(tab) => setActiveTab(tab)}
             teamIntro={intro}
             onUpdateIntro={handleUpdateIntro}
@@ -459,6 +488,11 @@ export default function App() {
             onAddFAQ={handleAddFAQ}
             onUpdateFAQ={handleUpdateFAQ}
             onDeleteFAQ={handleDeleteFAQ}
+            categories={resourceCategories}
+            onUpdateCategories={(nextCategories) => {
+              setResourceCategories(nextCategories);
+              pushToServer({ resourceCategories: nextCategories });
+            }}
           />
         );
       default:

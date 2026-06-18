@@ -13,6 +13,7 @@ interface HomeSectionProps {
   achievements: Achievement[];
   upcomingEventsCount: number;
   membersCount: number;
+  resourcesCount: number;
   onNavigate: (tab: string) => void;
   teamIntro: { title: string; subtitle: string; description: string; mismatchBanner: string };
   onUpdateIntro: (updatedIntro: { title: string; subtitle: string; description: string; mismatchBanner: string }) => void;
@@ -26,6 +27,7 @@ export default function HomeSection({
   achievements,
   upcomingEventsCount,
   membersCount,
+  resourcesCount,
   onNavigate,
   teamIntro,
   onUpdateIntro,
@@ -297,7 +299,7 @@ export default function HomeSection({
         {[
           { label: "Active Members", count: membersCount, icon: Flame, color: "text-amber-500 bg-amber-50" },
           { label: "Medals & Honors", count: achievements.length, icon: Trophy, color: "text-violet-500 bg-violet-50" },
-          { label: "Resources Defined", count: 4, icon: BookOpen, color: "text-emerald-500 bg-emerald-50" },
+          { label: "Resources Defined", count: resourcesCount, icon: BookOpen, color: "text-emerald-500 bg-emerald-50" },
         ].map((stat, idx) => {
           const Icon = stat.icon;
           return (
